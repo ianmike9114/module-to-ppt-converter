@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app/api/generate-module/route.js": { "maxDuration": 60 },
+    "app/api/generate-images/route.js": { "maxDuration": 60 },
+    "app/api/build-pptx/route.js": { "maxDuration": 30 }
+  }
+}
