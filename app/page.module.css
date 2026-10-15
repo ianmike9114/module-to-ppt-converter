@@ -110,3 +110,20 @@
   color: #b3261e;
   font-size: 0.9rem;
 }
+
+.canvaPanel {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.canvaLink {
+  font-weight: 600;
+}
+
+.canvaHint {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
