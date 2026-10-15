@@ -1,9 +1,9 @@
-import mammoth from 'mammoth';
+import { extractModuleText } from '@/lib/extractText';
 
 // Extracts plain text from an uploaded existing module so it can be passed to
 // Groq as "existingContent" reference material in /api/generate-module.
-// Supports: .docx (e.g. exported from ModuleGenerator-Desktop), .txt, and
-// pasted-text/JSON bodies sent directly as plain text.
+// Supports: .docx (e.g. exported from ModuleGenerator-Desktop), .pdf, .txt,
+// and pasted-text/JSON bodies sent directly as plain text.
 export async function POST(request) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -15,19 +15,13 @@ export async function POST(request) {
         return Response.json({ error: 'No file uploaded.' }, { status: 400 });
       }
 
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const name = (file.name || '').toLowerCase();
-
-      let extractedText;
-      if (name.endsWith('.docx')) {
-        const result = await mammoth.extractRawText({ buffer });
-        extractedText = result.value;
-      } else {
-        extractedText = buffer.toString('utf-8');
+      const buffer = Buffer.from(await file.arrayBuffer());
+      try {
+        const extractedText = await extractModuleText(file.name, buffer);
+        return Response.json({ extractedText });
+      } catch (error) {
+        return Response.json({ error: error.message }, { status: 400 });
       }
-
-      return Response.json({ extractedText: extractedText.trim() });
     }
 
     // Plain pasted text/JSON sent as a JSON body: { text: "..." }

@@ -184,8 +184,8 @@ export default function Home() {
         {mode === "existing" && (
           <>
             <div className={styles.field}>
-              <label htmlFor="file">Upload existing module (.docx or .txt)</label>
-              <input id="file" type="file" accept=".docx,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <label htmlFor="file">Upload existing module (.docx, .pdf, or .txt)</label>
+              <input id="file" type="file" accept=".docx,.pdf,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             </div>
             <div className={styles.field}>
               <label htmlFor="pastedText">...or paste the module content directly</label>
