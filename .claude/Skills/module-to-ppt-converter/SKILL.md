@@ -94,12 +94,46 @@ never see or need either:
 
 Vercel Hobby (free) tier. `vercel.json` sets `maxDuration` (60s for the two
 AI-calling routes, 30s for pptx assembly) since Hobby's serverless default is
-too short for a Groq + several sequential Gemini calls. No Canva account/API
-is used anywhere — slide design is entirely self-styled via `pptxgenjs`.
+too short for a Groq + several sequential Gemini calls. Slide design is
+self-styled via `pptxgenjs`; Canva is only an optional "open the finished
+deck in Canva" step (below), never part of generation.
+
+## Canva (optional "Open in Canva")
+
+After a deck is generated, `app/page.js` keeps the `.pptx` Blob and shows an
+"Open in Canva" button that imports it into the teacher's own Canva account
+via the Canva Connect **Design Import** API, then links to the edit URL.
+
+- `lib/canva/client.js` — Connect REST client (OAuth PKCE token calls,
+  `createImportJob`, `getImportJob`); `fetch` is injectable for tests.
+  Scope is `design:content:write` only (`SCOPES` constant).
+- `lib/canva/seal.js` + `lib/canva/session.js` — tokens live in an
+  AES-256-GCM encrypted httpOnly cookie (`canva_session`); the PKCE
+  verifier/state in a 10-minute `canva_oauth` cookie. No database.
+- `lib/canva/withCanva.js` — shared route wrapper: refreshes the access token
+  when near expiry and **always rewrites the cookie** (Canva refresh tokens
+  are single-use); auth failures → 401 `{needsConnect: true}`.
+- `lib/canva/browser.js` — client helpers: sign-in runs in a **popup**
+  (`/api/canva/connect` → Canva → `/api/canva/callback`, which postMessages
+  the opener and closes) so the in-memory deck isn't lost; then upload +
+  poll the import job.
+- Routes: `/api/canva/{status,connect,callback,disconnect,import,import/[jobId]}`.
+- Env vars (server-only, see `.env.example`): `CANVA_CLIENT_ID`,
+  `CANVA_CLIENT_SECRET`, `CANVA_REDIRECT_URI`, `CANVA_SESSION_SECRET` (32+
+  chars). If any is missing, `/api/canva/status` reports `enabled: false` and
+  the UI shows only manual upload instructions.
+- The integration is a **Public** Canva integration. Until Canva reviews it,
+  only the developer's own Canva account can connect; co-teachers fall back
+  to the manual upload hint.
+- Local dev must be browsed at `http://127.0.0.1:3000` (matches the
+  registered redirect URL, so the OAuth cookie host matches).
+- Known limit: Vercel's ~4.5 MB request body cap applies to the import
+  upload; a 413 shows the manual-upload message.
 
 ## Verifying changes
 
-No test suite exists. After any change: run `npm run dev`, submit the form in
+`npm test` runs `node:test` unit tests for `lib/canva/*` (no network).
+Otherwise there's no test suite. After any change: run `npm run dev`, submit the form in
 both modes (topic-only, and pasted/uploaded existing content), confirm the
 downloaded `.pptx` opens and shows the requested day count with the
 intro/content/activity/check-for-understanding slide sequence per day, and
