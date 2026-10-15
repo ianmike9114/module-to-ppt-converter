@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./page.module.css";
+import { connectCanvaPopup, importDeckToCanva } from "@/lib/canva/browser";
 
 export default function Home() {
   const [mode, setMode] = useState("topic"); // "topic" | "existing"
@@ -16,12 +17,25 @@ export default function Home() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deck, setDeck] = useState(null); // { blob, title }
+  const [canva, setCanva] = useState({ enabled: false, connected: false });
+  const [canvaStatus, setCanvaStatus] = useState("");
+  const [canvaError, setCanvaError] = useState("");
+  const [canvaUrl, setCanvaUrl] = useState("");
+  const [canvaBusy, setCanvaBusy] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/canva/status").then((r) => r.json()).then(setCanva).catch(() => {});
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setStatus("");
     setBusy(true);
+    setDeck(null);
+    setCanvaUrl("");
+    setCanvaError("");
 
     try {
       let existingContent = "";
@@ -84,6 +98,7 @@ export default function Home() {
       }
 
       const blob = await pptxRes.blob();
+      setDeck({ blob, title: topic || subject || "Lesson deck" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -99,6 +114,29 @@ export default function Home() {
       setStatus("");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleOpenInCanva() {
+    setCanvaError("");
+    setCanvaUrl("");
+    setCanvaBusy(true);
+    try {
+      if (!canva.connected) {
+        setCanvaStatus("Waiting for Canva sign-in...");
+        const ok = await connectCanvaPopup();
+        if (!ok) throw new Error("Canva sign-in didn't finish. If your account isn't allowed yet, upload the downloaded file at canva.com.");
+        setCanva((c) => ({ ...c, connected: true }));
+      }
+      const editUrl = await importDeckToCanva(deck.blob, deck.title, setCanvaStatus);
+      setCanvaUrl(editUrl);
+      setCanvaStatus("");
+    } catch (err) {
+      if (err.needsConnect) setCanva((c) => ({ ...c, connected: false }));
+      setCanvaError(err.message || "Canva import failed.");
+      setCanvaStatus("");
+    } finally {
+      setCanvaBusy(false);
     }
   }
 
@@ -146,8 +184,8 @@ export default function Home() {
         {mode === "existing" && (
           <>
             <div className={styles.field}>
-              <label htmlFor="file">Upload existing module (.docx or .txt)</label>
-              <input id="file" type="file" accept=".docx,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <label htmlFor="file">Upload existing module (.docx, .pdf, or .txt)</label>
+              <input id="file" type="file" accept=".docx,.pdf,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             </div>
             <div className={styles.field}>
               <label htmlFor="pastedText">...or paste the module content directly</label>
@@ -192,6 +230,26 @@ export default function Home() {
 
       {status && <div className={styles.status}>{status}</div>}
       {error && <div className={styles.error}>{error}</div>}
+
+      {deck && (
+        <div className={styles.canvaPanel}>
+          {canva.enabled && (
+            <button type="button" className={styles.submit} onClick={handleOpenInCanva} disabled={canvaBusy}>
+              {canvaBusy ? "Sending to Canva..." : canva.connected ? "Open in Canva" : "Connect Canva & open"}
+            </button>
+          )}
+          {canvaStatus && <div className={styles.status}>{canvaStatus}</div>}
+          {canvaError && <div className={styles.error}>{canvaError}</div>}
+          {canvaUrl && (
+            <a className={styles.canvaLink} href={canvaUrl} target="_blank" rel="noopener noreferrer">
+              Your deck is ready in Canva — open it →
+            </a>
+          )}
+          <p className={styles.canvaHint}>
+            Prefer doing it by hand? In Canva, choose <strong>Upload</strong> (or Create → Import file) and pick the downloaded .pptx.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
